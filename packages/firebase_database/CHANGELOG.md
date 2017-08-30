@@ -1,3 +1,8 @@
+<<<<<<< HEAD
+## 0.1.1
+
+* Add RTDB transaction support.
+
 ## 0.1.0
 
 * **Breaking Change**: Added current list index to the type signature of itemBuilder for FirebaseAnimatedList.
