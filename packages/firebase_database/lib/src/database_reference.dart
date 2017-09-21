@@ -140,7 +140,7 @@ class DatabaseReference extends Query {
   /// Database servers will also be started.
   ///
   /// remove() is equivalent to calling set(null)
-  Future<void> remove() => set(null);
+  Future<Null> remove() => set(null);
 
   /// Performs an optimistic-concurrency transactional update to the data at
   /// this Firebase Database location.
@@ -183,6 +183,10 @@ class DatabaseReference extends Query {
     });
 
     return completer.future;
+  }
+
+  OnDisconnect onDisconnect() {
+    return new OnDisconnect._(_database, this);
   }
 }
 
