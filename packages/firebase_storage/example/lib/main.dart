@@ -120,7 +120,8 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return new StreamBuilder<StorageTaskEvent>(
       stream: uploadTask?.events,
-      builder: (context, snapshot) {
+      builder:
+          (BuildContext context, AsyncSnapshot<StorageTaskEvent> snapshot) {
         return new Scaffold(
           appBar: new AppBar(
             title: const Text('Flutter Storage Example'),

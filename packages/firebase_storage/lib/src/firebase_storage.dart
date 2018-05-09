@@ -50,7 +50,7 @@ class FirebaseStorage {
 
   /// Used to dispatch method calls
   final StreamController<MethodCall> _methodStreamController =
-      new StreamController.broadcast(); // ignore: close_sinks
+      new StreamController<MethodCall>.broadcast(); // ignore: close_sinks
   Stream<MethodCall> get _methodStream => _methodStreamController.stream;
 
   /// Creates a new [StorageReference] initialized at the root

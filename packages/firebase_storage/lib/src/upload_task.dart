@@ -38,7 +38,7 @@ abstract class StorageUploadTask {
 
   /// Convenience method to get the downloadUrl when complete
   Completer<Uri> _downloadUrl = new Completer<Uri>();
-  Future<Uri> get downloadUrl => _downloadUrl.future.then((u) {
+  Future<Uri> get downloadUrl => _downloadUrl.future.then((Uri u) {
         if (u == null) throw Exception('Failed to upload');
         return u;
       });
@@ -53,10 +53,10 @@ abstract class StorageUploadTask {
     return await _storage._methodStream
         .where((MethodCall m) => m.method == 'StorageTaskEvent')
         .where((MethodCall m) => m.arguments['handle'] == _handle)
-        .map<Map<dynamic, dynamic>>((m) => m.arguments)
-        .map<StorageTaskEvent>(
-            (m) => new StorageTaskEvent._(m['type'], m['snapshot']))
-        .map<StorageTaskEvent>((e) {
+        .map<Map<dynamic, dynamic>>((MethodCall m) => m.arguments)
+        .map<StorageTaskEvent>((Map<dynamic, dynamic> m) =>
+            new StorageTaskEvent._(m['type'], m['snapshot']))
+        .map<StorageTaskEvent>((StorageTaskEvent e) {
           _resetState();
           switch (e.type) {
             case StorageTaskEventType.progress:
@@ -87,10 +87,10 @@ abstract class StorageUploadTask {
           _controller.add(e);
           return e;
         })
-        .firstWhere((e) =>
+        .firstWhere((StorageTaskEvent e) =>
             e.type == StorageTaskEventType.success ||
             e.type == StorageTaskEventType.failure)
-        .then<StorageTaskSnapshot>((event) => event.snapshot);
+        .then<StorageTaskSnapshot>((StorageTaskEvent event) => event.snapshot);
   }
 
   void _resetState() {
