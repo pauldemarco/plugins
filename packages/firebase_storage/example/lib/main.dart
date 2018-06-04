@@ -2,12 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 void main() async {
   final FirebaseApp app = await FirebaseApp.configure(
@@ -56,10 +58,7 @@ class _MyHomePageState extends State<MyHomePage> {
   String _path;
   String _tempFileContents;
 
-  StorageUploadTask uploadTask;
-
-/*
-  StorageUploadTask.Future<Null> _uploadFile() async {
+  Future<Null> _uploadFile() async {
     final Directory systemTempDir = Directory.systemTemp;
     final File file = await new File('${systemTempDir.path}/foo.txt').create();
     file.writeAsString(kTestString);
@@ -99,82 +98,36 @@ class _MyHomePageState extends State<MyHomePage> {
       _bucket = bucket;
       _tempFileContents = tempFileContents;
     });
-  }*/
-
-  void _startUpload() async {
-    final Directory systemTempDir = Directory.systemTemp;
-    final File file = await new File('${systemTempDir.path}/foo.txt').create();
-    file.writeAsString(kTestString);
-    assert(await file.readAsString() == kTestString);
-    final String rand = "${new Random().nextInt(10000)}";
-    final StorageReference ref =
-        widget.storage.ref().child('text').child('foo$rand.txt');
-    final StorageUploadTask task =
-        ref.putFile(file, StorageMetadata(contentLanguage: "en"));
-    setState(() {
-      uploadTask = task;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return new StreamBuilder<StorageTaskEvent>(
-      stream: uploadTask?.events,
-      builder:
-          (BuildContext context, AsyncSnapshot<StorageTaskEvent> snapshot) {
-        return new Scaffold(
-          appBar: new AppBar(
-            title: const Text('Flutter Storage Example'),
-          ),
-          body: new Center(
-            child: new Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                _fileContents == null
-                    ? const Text('Press the button to upload a file \n '
-                        'and download its contents to tmp.txt')
-                    : new Text(
-                        'Success!\n Uploaded $_name \n to bucket: $_bucket\n '
-                            'at path: $_path \n\nFile contents: "$_fileContents" \n'
-                            'Wrote "$_tempFileContents" to tmp.txt',
-                        style: const TextStyle(
-                            color: const Color.fromARGB(255, 0, 155, 0)),
-                      )
-              ],
-            ),
-          ),
-          floatingActionButton: new FloatingActionButton(
-            onPressed: (uploadTask == null || uploadTask.isComplete)
-                ? _startUpload
-                : null,
-            tooltip: 'Upload',
-            child: const Icon(Icons.file_upload),
-          ),
-          persistentFooterButtons: <Widget>[
-            new RaisedButton.icon(
-              icon: const Icon(Icons.pause),
-              label: const Text('Pause'),
-              onPressed: (uploadTask != null && uploadTask.isInProgress)
-                  ? uploadTask.pause
-                  : null,
-            ),
-            new RaisedButton.icon(
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Resume'),
-              onPressed: (uploadTask != null && uploadTask.isPaused)
-                  ? uploadTask.resume
-                  : null,
-            ),
-            new RaisedButton.icon(
-              icon: const Icon(Icons.cancel),
-              label: const Text('Cancel'),
-              onPressed: (uploadTask != null && !uploadTask.isComplete)
-                  ? uploadTask.cancel
-                  : null,
-            ),
+    return new Scaffold(
+      appBar: new AppBar(
+        title: const Text('Flutter Storage Example'),
+      ),
+      body: new Center(
+        child: new Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            _fileContents == null
+                ? const Text('Press the button to upload a file \n '
+                    'and download its contents to tmp.txt')
+                : new Text(
+                    'Success!\n Uploaded $_name \n to bucket: $_bucket\n '
+                        'at path: $_path \n\nFile contents: "$_fileContents" \n'
+                        'Wrote "$_tempFileContents" to tmp.txt',
+                    style: const TextStyle(
+                        color: const Color.fromARGB(255, 0, 155, 0)),
+                  )
           ],
-        );
-      },
+        ),
+      ),
+      floatingActionButton: new FloatingActionButton(
+        onPressed: _uploadFile,
+        tooltip: 'Upload',
+        child: const Icon(Icons.file_upload),
+      ),
     );
   }
 }
