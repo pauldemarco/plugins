@@ -1,24 +1,15 @@
-// Copyright 2017, the Flutter project authors.  Please see the AUTHORS file
-// for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE file.
+// Copyright 2017 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 part of firebase_storage;
 
-/// TODO: (pauldemarco) Reduce code duplication with StorageDownloadTask
 abstract class StorageUploadTask {
-  StorageUploadTask({
-    @required FirebaseStorage storage,
-    @required StorageReference reference,
-    StorageMetadata metadata,
-  })  : _storage = storage,
-        _reference = reference,
-        _metadata = metadata,
-        assert(storage != null);
-
-  final FirebaseStorage _storage;
+  final FirebaseStorage _firebaseStorage;
+  final String _path;
   final StorageMetadata _metadata;
-  final StorageReference _reference;
 
+  StorageUploadTask._(this._firebaseStorage, this._path, this._metadata);
   Future<dynamic> _platformMethod();
 
   int _handle;
@@ -47,50 +38,53 @@ abstract class StorageUploadTask {
       new StreamController<StorageTaskEvent>.broadcast();
   Stream<StorageTaskEvent> get events => _controller.stream;
 
-  /// Returns a StorageTaskSnapshot on complete, or throws error
   Future<StorageTaskSnapshot> _start() async {
-    _handle = await _platformMethod().then<int>((dynamic result) => result);
-    return await _storage._methodStream
-        .where((MethodCall m) => m.method == 'StorageTaskEvent')
-        .where((MethodCall m) => m.arguments['handle'] == _handle)
-        .map<Map<dynamic, dynamic>>((MethodCall m) => m.arguments)
-        .map<StorageTaskEvent>((Map<dynamic, dynamic> m) =>
-            new StorageTaskEvent._(m['type'], m['snapshot']))
-        .map<StorageTaskEvent>((StorageTaskEvent e) {
-          _resetState();
-          switch (e.type) {
-            case StorageTaskEventType.progress:
-              isInProgress = true;
-              break;
-            case StorageTaskEventType.resume:
-              isInProgress = true;
-              break;
-            case StorageTaskEventType.pause:
-              isPaused = true;
-              break;
-            case StorageTaskEventType.success:
-              isSuccessful = true;
-              isComplete = true;
-              _completer.complete(e.snapshot);
-              _downloadUrl.complete(e.snapshot.downloadUrl);
-              break;
-            case StorageTaskEventType.failure:
-              isComplete = true;
-              if (e.snapshot.error == StorageError.canceled) {
-                isCanceled = true;
-              }
-              _completer.complete(e.snapshot);
-              _downloadUrl.complete(e.snapshot.downloadUrl);
-              break;
-          }
-          lastSnapshot = e.snapshot;
-          _controller.add(e);
-          return e;
-        })
-        .firstWhere((StorageTaskEvent e) =>
+    _handle = await _platformMethod();
+    final StorageTaskEvent event = await _firebaseStorage._methodStream
+        .where((MethodCall m) {
+      return m.method == 'StorageTaskEvent' && m.arguments['handle'] == _handle;
+    }).map<StorageTaskEvent>((MethodCall m) {
+      final Map<dynamic, dynamic> args = m.arguments;
+      final StorageTaskEvent e =
+          new StorageTaskEvent._(args['type'], args['snapshot']);
+      _setState(e);
+      lastSnapshot = e.snapshot;
+      _controller.add(e);
+      if (e.type == StorageTaskEventType.success ||
+          e.type == StorageTaskEventType.failure) {
+        _completer.complete(e.snapshot);
+        _downloadUrl.complete(e.snapshot.downloadUrl);
+      }
+      return e;
+    }).firstWhere((StorageTaskEvent e) =>
             e.type == StorageTaskEventType.success ||
-            e.type == StorageTaskEventType.failure)
-        .then<StorageTaskSnapshot>((StorageTaskEvent event) => event.snapshot);
+            e.type == StorageTaskEventType.failure);
+    return event.snapshot;
+  }
+
+  void _setState(StorageTaskEvent event) {
+    _resetState();
+    switch (event.type) {
+      case StorageTaskEventType.progress:
+        isInProgress = true;
+        break;
+      case StorageTaskEventType.resume:
+        isInProgress = true;
+        break;
+      case StorageTaskEventType.pause:
+        isPaused = true;
+        break;
+      case StorageTaskEventType.success:
+        isSuccessful = true;
+        isComplete = true;
+        break;
+      case StorageTaskEventType.failure:
+        isComplete = true;
+        if (event.snapshot.error == StorageError.canceled) {
+          isCanceled = true;
+        }
+        break;
+    }
   }
 
   void _resetState() {
@@ -105,8 +99,8 @@ abstract class StorageUploadTask {
   void pause() => FirebaseStorage.channel.invokeMethod(
         'UploadTask#pause',
         <String, dynamic>{
-          'app': _storage.app?.name,
-          'bucket': _storage.storageBucket,
+          'app': _firebaseStorage.app?.name,
+          'bucket': _firebaseStorage.storageBucket,
           'handle': _handle,
         },
       );
@@ -115,8 +109,8 @@ abstract class StorageUploadTask {
   void resume() => FirebaseStorage.channel.invokeMethod(
         'UploadTask#resume',
         <String, dynamic>{
-          'app': _storage.app?.name,
-          'bucket': _storage.storageBucket,
+          'app': _firebaseStorage.app?.name,
+          'bucket': _firebaseStorage.storageBucket,
           'handle': _handle,
         },
       );
@@ -125,32 +119,28 @@ abstract class StorageUploadTask {
   void cancel() => FirebaseStorage.channel.invokeMethod(
         'UploadTask#cancel',
         <String, dynamic>{
-          'app': _storage.app?.name,
-          'bucket': _storage.storageBucket,
+          'app': _firebaseStorage.app?.name,
+          'bucket': _firebaseStorage.storageBucket,
           'handle': _handle,
         },
       );
 }
 
-class _StorageFileUploadTask extends StorageUploadTask {
-  _StorageFileUploadTask({
-    @required FirebaseStorage storage,
-    @required StorageReference reference,
-    StorageMetadata metadata,
-    @required this.file,
-  }) : super(storage: storage, reference: reference, metadata: metadata);
-
-  final File file;
+class StorageFileUploadTask extends StorageUploadTask {
+  final File _file;
+  StorageFileUploadTask._(this._file, FirebaseStorage firebaseStorage,
+      String path, StorageMetadata metadata)
+      : super._(firebaseStorage, path, metadata);
 
   @override
   Future<dynamic> _platformMethod() {
     return FirebaseStorage.channel.invokeMethod(
       'StorageReference#putFile',
       <String, dynamic>{
-        'app': _storage.app?.name,
-        'bucket': _storage.storageBucket,
-        'filename': file.absolute.path,
-        'path': _reference.path,
+        'app': _firebaseStorage.app?.name,
+        'bucket': _firebaseStorage.storageBucket,
+        'filename': _file.absolute.path,
+        'path': _path,
         'metadata':
             _metadata == null ? null : _buildMetadataUploadMap(_metadata),
       },
@@ -158,25 +148,21 @@ class _StorageFileUploadTask extends StorageUploadTask {
   }
 }
 
-class _StorageDataUploadTask extends StorageUploadTask {
-  _StorageDataUploadTask({
-    @required FirebaseStorage storage,
-    @required StorageReference reference,
-    StorageMetadata metadata,
-    @required this.data,
-  }) : super(storage: storage, reference: reference, metadata: metadata);
-
-  final Uint8List data;
+class StorageDataUploadTask extends StorageUploadTask {
+  final Uint8List _bytes;
+  StorageDataUploadTask._(this._bytes, FirebaseStorage firebaseStorage,
+      String path, StorageMetadata metadata)
+      : super._(firebaseStorage, path, metadata);
 
   @override
   Future<dynamic> _platformMethod() {
     return FirebaseStorage.channel.invokeMethod(
-      'StorageReference#putFile',
+      'StorageReference#putData',
       <String, dynamic>{
-        'app': _storage.app?.name,
-        'bucket': _storage.storageBucket,
-        'data': data,
-        'path': _reference.path,
+        'app': _firebaseStorage.app?.name,
+        'bucket': _firebaseStorage.storageBucket,
+        'data': _bytes,
+        'path': _path,
         'metadata':
             _metadata == null ? null : _buildMetadataUploadMap(_metadata),
       },

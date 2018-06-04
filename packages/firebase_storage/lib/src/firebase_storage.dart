@@ -55,7 +55,7 @@ class FirebaseStorage {
 
   /// Creates a new [StorageReference] initialized at the root
   /// Firebase Storage location.
-  StorageReference ref() => new StorageReference._(this, <String>[]);
+  StorageReference ref() => new StorageReference._(const <String>[], this);
 
   Future<int> getMaxDownloadRetryTimeMillis() async {
     return await channel.invokeMethod(
